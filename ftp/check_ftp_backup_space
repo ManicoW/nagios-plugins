@@ -1,0 +1,86 @@
+#!/bin/bash
+
+# Check available space on an FTP serveur
+# Written by Nicolas Lafont (ndev@wdmedia.net)
+# Require ncftp
+# Last Modified: 2015-08-05
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# Config
+NCFTP=/usr/bin/ncftp
+
+# Script body
+USAGE="`basename $0` -h host -u username -p pass -w warning_percent -c crital_percent"
+
+while getopts "u:p:w:c:h:" OPTION; do
+    case $OPTION in
+        h)
+        host=$OPTARG
+        ;;
+        u)
+        user=$OPTARG
+        ;;
+        p)
+        pass=$OPTARG
+        ;;
+        w)
+        warning=$OPTARG
+        ;;
+        c)
+        critical=$OPTARG
+        ;;
+    esac
+done
+
+if [ ! -x $NCFTP ]; then
+	echo "unmet prerequisites : ncftp not found"
+	exit 3
+fi
+
+if [ -z $host ]; then
+        echo "Empty host"
+        echo $USAGE
+        exit 3
+fi
+
+if [ -z $user ]; then
+        echo "Empty user"
+        echo $USAGE
+        exit 3
+fi
+
+if [ -z $pass ]; then
+        echo "Empty pass"
+        echo $USAGE
+        exit 3
+fi
+
+if [ -z $warning ]; then
+        warning=85
+fi
+
+if [ -z $critical ]; then
+        critical=92
+fi
+
+DISKUSED=`echo "quit" | $NCFTP -u ${user} -p ${pass} ${host} | grep used | cut -d \( -f 2 | cut -d % -f 1`
+
+if [ $DISKUSED -ge $critical ]; then
+        echo "CRITICAL : ${DISKUSED}% (warning : ${warning}% - critical : ${critical}%)" && exit 2;
+elif [ $DISKUSED -ge $warning ]; then
+        echo "WARNING : ${DISKUSED}% (warning : ${warning}% - critical : ${critical}%)" && exit 1;
+else
+        echo "OK : ${DISKUSED}% (warning : ${warning}% - critical : ${critical}%)" && exit 0;
+fi

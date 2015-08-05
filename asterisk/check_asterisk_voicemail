@@ -1,0 +1,95 @@
+#!/bin/bash
+
+# Check asterisk voicemail filling for Nagios
+# Written by Nicolas Lafont (ndev@wdmedia.net)
+# Last Modified: 2015-08-05
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# Modify IFS
+OLDIFS=$IFS
+IFS=$'\n'
+
+# Configuration
+ASTERISK=/usr/sbin/asterisk
+ASTERISKVOICEMAILCONF=/etc/asterisk/voicemail.conf
+AWK=/usr/bin/awk
+
+# Script Body
+OVERQUOTA=0
+NEARQUOTA=0
+MAX=100
+RESUME=""
+
+# Check for binaries
+if [ ! -x $ASTERISK ]; then
+	echo "unmet prerequisites : asterisk not found"
+	exit 3
+fi
+
+if [ ! -r $ASTERISKVOICEMAILCONF ]; then
+	echo "unmet prerequisites : voicemail configuration not found"
+	exit 3
+fi
+
+if [ ! -x $AWK ]; then
+	echo "unmet prerequisites : awk not found"
+	exit 3
+fi
+
+# Check configuration for maxmsg modification
+CHECKMAX=`grep ^maxmsg $ASTERISKVOICEMAILCONF | cut -d = -f 2`
+if [ ! -z $CHECKMAX ]; then
+  MAX=$CHECKMAX
+fi
+
+WARN=`echo $(($MAX*90/100))`
+
+# Get the defined voicemail
+for MAILBOXLINE in `$ASTERISK -rx "voicemail show users" | tail -n +2 | grep -v configured`
+do
+        # For each, we separate info
+        NB=`echo $MAILBOXLINE | $AWK '{print $NF}'`
+        NUMBER=`echo $MAILBOXLINE | $AWK '{print $2}'`
+        DESC=`echo $MAILBOXLINE | $AWK '{name=""; for (i = 3; i < NF ; i++) { name = name $i " " } print name}'`
+        # Now we check
+        if [ $NB -ge $MAX ]; then
+                let OVERQUOTA++
+                RESUME="$RESUME $DESC<$NUMBER> CRITICAL ($NB);"
+        elif [ $NB -ge $WARN ]; then
+                let NEARQUOTA++
+                RESUME="$RESUME $DESC<$NUMBER> WARNING ($NB);"
+        else
+                RESUME="$RESUME $DESC<$NUMBER> OK ($NB);"
+        fi
+done
+
+if [ $OVERQUOTA -gt 0 ]; then
+        RESUME="CRITICAL: $RESUME"
+        EXITCODE=2
+elif [ $NEARQUOTA -gt 0 ]; then
+        RESUME="WARNING: $RESUME"
+        EXITCODE=1
+else
+        RESUME="OK: $RESUME"
+        EXITCODE=0
+fi
+
+echo "$RESUME - (warn at $WARN; critical at $MAX)"
+
+# Restore IFS
+IFS=$OLDIFS
+
+exit $EXITCODE
+
