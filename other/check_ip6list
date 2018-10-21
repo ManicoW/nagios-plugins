@@ -1,0 +1,39 @@
+#!/bin/bash
+#
+# Return the list of IPs on server
+# Based on ip command
+#
+# @author Nicolas Lafont <ndev@wdmedia.net>
+
+# Program location based on distribution
+LSBR_DISTRID=`lsb_release -i -s`
+
+case $LSBR_DISTRID in
+    Debian | Ubuntu)
+    IP=/bin/ip
+    GREP=/bin/grep
+    SORT=/usr/bin/sort
+    AWK=/usr/bin/awk
+    CUT=/usr/bin/cut
+    ECHO=/bin/echo
+    WC=/usr/bin/wc
+    SED=/bin/sed
+    ;;
+    XCP-ng | Xenserver)
+    IP=/usr/sbin/ip
+    GREP=/usr/bin/grep
+    SORT=/usr/bin/sort
+    AWK=/usr/bin/awk
+    CUT=/usr/bin/cut
+    ECHO=/usr/bin/echo
+    WC=/usr/bin/wc
+    SED=/usr/bin/sed
+    ;;
+esac
+
+# Find IPs
+IPLIST=`${IP} address list | ${GREP} inet | ${SORT} | ${AWK} '{print $2}' | ${CUT} -d / -f 1 | ${GREP} :`
+IPCOUNT=`${ECHO} $IPLIST | /usr/bin/wc -w`
+${ECHO} -n "$IPCOUNT IPs found : "
+${ECHO} $IPLIST | ${SED} "s/ / , /g"
+exit 0
